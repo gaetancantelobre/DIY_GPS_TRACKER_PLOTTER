@@ -1,6 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.ndimage import gaussian_filter1d
 
 data = []
 
@@ -21,8 +22,12 @@ first_longitude = df['longitude'].iloc[0]
 df['x'] = -((df['longitude'] - first_longitude) * 111320)  # Approximate meters per degree of longitude
 df['y'] = ((df['latitude'] - first_latitude) * 111320)  # Approximate meters per degree of latitude
 
-# Calculate distances between consecutive points
-df['distance'] = np.sqrt((df['x'].diff() ** 2) + (df['y'].diff() ** 2))
+# Apply Gaussian smoothing to x and y coordinates
+df['x_smooth'] = gaussian_filter1d(df['x'], sigma=14)
+df['y_smooth'] = gaussian_filter1d(df['y'], sigma=14)
+
+# Calculate distances between consecutive points (using smoothed data)
+df['distance'] = np.sqrt((df['x_smooth'].diff() ** 2) + (df['y_smooth'].diff() ** 2))
 
 # Calculate total distance
 total_distance = df['distance'].sum()  # In meters
@@ -30,10 +35,8 @@ total_distance = df['distance'].sum()  # In meters
 # Calculate time differences between consecutive points
 df['time_diff'] = df['utc_time'].diff()  # Time differences in seconds
 
-# Calculate total time
-total_time = df['time_diff'].sum()  # Total time in seconds
-
 # Calculate average speed (meters per second)
+total_time = df['time_diff'].sum()  # Total time in seconds
 average_speed = total_distance / total_time if total_time > 0 else 0  # Avoid division by zero
 
 # Normalize time to map to colors
@@ -47,7 +50,7 @@ norm = plt.Normalize(df['normalized_time'].min(), df['normalized_time'].max())
 cmap = plt.get_cmap('viridis')
 
 for i in range(len(df) - 1):
-    plt.plot(df['x'].iloc[i:i+2], df['y'].iloc[i:i+2], color=cmap(norm(df['normalized_time'].iloc[i])), linewidth=2)
+    plt.plot(df['x_smooth'].iloc[i:i+2], df['y_smooth'].iloc[i:i+2], color=cmap(norm(df['normalized_time'].iloc[i])), linewidth=2)
 
 # Add a colorbar
 sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
@@ -58,7 +61,7 @@ cbar.set_label('Normalized Time (Older to Newer)', fontsize=10)
 # Add labels and title
 plt.xlabel('X (meters)')
 plt.ylabel('Y (meters)')
-plt.title('GPS Coordinates Relative to Start')
+plt.title('Smoothed GPS Coordinates Relative to Start')
 
 # Convert total time to a readable format (hours, minutes, seconds)
 hours = int(total_time // 3600)
@@ -66,7 +69,8 @@ minutes = int((total_time % 3600) // 60)
 seconds = int(total_time % 60)
 formatted_time = f"{hours}h {minutes}m {seconds}s"
 
-# Add total distance, average speed, and total time to the plot
+
+# Add total distance and average speed to the plot
 plt.text(0.05, 0.95, f"Total Distance: {total_distance:.2f} m\n"
                      f"Average Speed: {average_speed:.2f} m/s\n"
                      f"Total Time: {formatted_time}",
