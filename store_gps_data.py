@@ -1,47 +1,40 @@
 import serial
-import time
-import pynmea2
 from datetime import datetime
 
-serial_port = '/dev/ttyUSB0'  # Replace with the actual serial port of your NEO-6M
+serial_port = '/dev/ttyACM0'  # Replace with the actual serial port of your NEO-6M
 baud_rate = 9600
 
-# Open the serial port
 try:
     ser = serial.Serial(serial_port, baud_rate)
-except serial.SerialException as e:
+except (serial.SerialException, serial.SerialTimeoutException) as e:
     print(f"Error opening serial port: {e}")
     exit()
 
 try:
-    # Get current date and time for filename
-    now = datetime.now()
-    filename = f"gps_data_{now:%Y%m%d_%H%M%S}.txt" 
-
-    with open(filename, "a") as f:
+    filename = f"gps_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt" 
+    with open(filename, "w") as f: 
         while True:
             try:
-                data = ser.readline().decode('utf-8')  # Read a line from the serial port
+                line = ser.readline().decode('utf-8').strip()
+                if line:
+                    try:
+                        data = line.split(" ") 
+                        time_str = data[0]
+                        latitude = float(data[1])
+                        longitude = float(data[2])
 
-                # Parse the NMEA sentence (assuming it's a GPGGA sentence)
-                msg = pynmea2.parse(data)
+                        # Write data to file
+                        f.write(f"{time_str} {latitude} {longitude}\n") 
+                        print(f"Logged: {time_str} {latitude} {longitude}")
 
-                # If we get the coordinates
-                if msg.msgID == 'GPGGA' and msg.gps_qual > 0:
-                    # Convert the time in message to object
-                    utc_time = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(msg.utc_time))
-                    latitude = msg.latitude
-                    longitude = msg.longitude
+                    except (ValueError, IndexError):
+                        print("Error parsing data:", line)  # Print the line for debugging
 
-                    # Write data to file
-                    f.write(f"{utc_time},{latitude},{longitude}\n")
-                    print(f"Logged: {utc_time}, Lat: {latitude}, Lon: {longitude}")
+            except UnicodeDecodeError:
+                print("Error decoding serial data")
 
-            except pynmea2.ParseError as e:
-                print(f"Parse error: {e}")
-
-except IOError as e:
-    print(f"Error writing to file: {e}")
+except KeyboardInterrupt:
+    print("Exiting...")
 
 finally:
     ser.close()

@@ -1,8 +1,18 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# Read the CSV file into a DataFrame
-df = pd.read_csv("gps_data.txt", header=None, names=["utc_time", "latitude", "longitude"])
+# Define data structure for parsing lines
+data = []
+
+# Read the file line by line
+with open("gps_data.txt", "r") as f:
+    for line in f:
+        # Split the line by spaces and convert to floats
+        time_str, latitude, longitude = map(float, line.strip().split(" "))
+        data.append({"utc_time": time_str, "latitude": latitude, "longitude": longitude})
+
+# Create a DataFrame from the data list
+df = pd.DataFrame(data)
 
 # Calculate the relative coordinates 
 first_latitude = df['latitude'].iloc[0]
