@@ -23,20 +23,12 @@ df['y'] = ((df['latitude'] - first_latitude) * 111320)  # Approximate meters per
 
 # Calculate distances between consecutive points
 df['distance'] = np.sqrt((df['x'].diff() ** 2) + (df['y'].diff() ** 2))
-
-# Calculate total distance
 total_distance = df['distance'].sum()  # In meters
 
-# Calculate time differences between consecutive points
-df['time_diff'] = df['utc_time'].diff()  # Time differences in seconds
 
-# Calculate total time
-total_time = df['time_diff'].sum()  # Total time in seconds
-
-# Calculate average speed (meters per second)
-average_speed = total_distance / total_time if total_time > 0 else 0  # Avoid division by zero
-
-# Normalize time to map to colors
+df['time_diff'] = df['utc_time'].diff()
+total_time = df['time_diff'].sum()  
+average_speed = total_distance / total_time if total_time > 0 else 0
 df['normalized_time'] = (df['utc_time'] - df['utc_time'].min()) / (df['utc_time'].max() - df['utc_time'].min())
 
 # Plotting
@@ -72,6 +64,8 @@ plt.text(0.05, 0.95, f"Total Distance: {total_distance:.2f} m\n"
                      f"Total Time: {formatted_time}",
          transform=plt.gca().transAxes, fontsize=10, verticalalignment='top', 
          bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5))
+
+
 
 plt.grid(True)
 plt.show()

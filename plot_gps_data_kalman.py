@@ -1,7 +1,8 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.ndimage import gaussian_filter1d
+from pykalman import KalmanFilter
+import paho.mqtt.client as mqtt
 
 data = []
 
@@ -22,9 +23,22 @@ first_longitude = df['longitude'].iloc[0]
 df['x'] = -((df['longitude'] - first_longitude) * 111320)  # Approximate meters per degree of longitude
 df['y'] = ((df['latitude'] - first_latitude) * 111320)  # Approximate meters per degree of latitude
 
-# Apply Gaussian smoothing to x and y coordinates
-df['x_smooth'] = gaussian_filter1d(df['x'], sigma=14)
-df['y_smooth'] = gaussian_filter1d(df['y'], sigma=14)
+# Kalman filter configuration
+kf = KalmanFilter(initial_state_mean=[df['x'].iloc[0], df['y'].iloc[0], 0, 0],
+                  transition_matrices=[[1, 0, 1, 0],
+                                       [0, 1, 0, 1],
+                                       [0, 0, 1, 0],
+                                       [0, 0, 0, 1]],
+                  observation_matrices=[[1, 0, 0, 0],
+                                        [0, 1, 0, 0]],
+                  observation_covariance=1e-3 * np.eye(2),
+                  transition_covariance=1e-4 * np.eye(4))
+
+# Apply the Kalman filter to the (x, y) data
+observations = df[['x', 'y']].values
+state_means, _ = kf.smooth(observations)
+df['x_smooth'] = state_means[:, 0]
+df['y_smooth'] = state_means[:, 1]
 
 # Calculate distances between consecutive points (using smoothed data)
 df['distance'] = np.sqrt((df['x_smooth'].diff() ** 2) + (df['y_smooth'].diff() ** 2))
@@ -61,14 +75,13 @@ cbar.set_label('Normalized Time (Older to Newer)', fontsize=10)
 # Add labels and title
 plt.xlabel('X (meters)')
 plt.ylabel('Y (meters)')
-plt.title('Smoothed GPS Coordinates Relative to Start')
+plt.title('Smoothed GPS Coordinates with Kalman Filter')
 
 # Convert total time to a readable format (hours, minutes, seconds)
 hours = int(total_time // 3600)
 minutes = int((total_time % 3600) // 60)
 seconds = int(total_time % 60)
 formatted_time = f"{hours}h {minutes}m {seconds}s"
-
 
 # Add total distance and average speed to the plot
 plt.text(0.05, 0.95, f"Total Distance: {total_distance:.2f} m\n"
@@ -77,26 +90,20 @@ plt.text(0.05, 0.95, f"Total Distance: {total_distance:.2f} m\n"
          transform=plt.gca().transAxes, fontsize=10, verticalalignment='top', 
          bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5))
 
-
-import paho.mqtt.client as mqtt
-
 # MQTT configuration
-mqtt_broker = "mqtt.example.com"  # Replace with your MQTT broker address
 mqtt_topic_distance = "gps/distance"  # Topic to publish status
 mqtt_topic_average_speed = "gps/speed"  # Topic to publish status
-mqtt_client_id = "gps_logger"  # Unique client ID
 
 unacked_publish = set()
 mqttc = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 
 mqttc.user_data_set(unacked_publish)
-mqttc.connect("129.151.251.252",27050)
+mqttc.connect("129.151.251.252", 27050)
 mqttc.loop_start()
 
 mqttc.publish(mqtt_topic_distance, total_distance, retain=True)  # Publish "true" when logging starts
 mqttc.publish(mqtt_topic_average_speed, average_speed, retain=True)  # Publish "true" when logging starts
 print("messages sent to mqtt server")
-
 
 mqttc.disconnect()
 
