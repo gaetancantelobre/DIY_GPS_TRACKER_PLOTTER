@@ -52,7 +52,7 @@ cmap = plt.get_cmap('viridis')
 for i in range(len(df) - 1):
     plt.plot(df['x_smooth'].iloc[i:i+2], df['y_smooth'].iloc[i:i+2], color=cmap(norm(df['normalized_time'].iloc[i])), linewidth=2)
 
-# Add a colorbar
+# Add a color reference
 sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
 sm.set_array([])
 cbar = plt.colorbar(sm, ax=plt.gca(), orientation='vertical')
